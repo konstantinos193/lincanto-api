@@ -48,6 +48,22 @@ export class ReviewsController {
     return this.reviewsService.getPropertyReviews(propertyId);
   }
 
+  // Public, token-authed flow for the lincanto.gr/review page. No login:
+  // the JWT signed with the booking id in the guest's email is the
+  // authorization. Declared before @Get(':id') so 'public' is not captured
+  // as an id.
+  @Get('public/booking-info')
+  bookingInfo(@Query('token') token: string) {
+    return this.reviewsService.getBookingReviewInfo(token ?? '');
+  }
+
+  @Post('public/submit')
+  submitPublic(
+    @Body() body: { token?: string; rating?: number; title?: string; comment?: string },
+  ) {
+    return this.reviewsService.createFromToken(body?.token ?? '', body ?? {});
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.reviewsService.findOne(id);

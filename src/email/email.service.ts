@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { signReviewToken } from '../reviews/review-token';
 
 export type EmailLang = 'en' | 'el';
 
@@ -326,6 +327,21 @@ export class EmailService {
           <a href="${data.stripeReceiptUrl}" style="color:#f59e0b;font-size:13px;text-decoration:none;border-bottom:1px solid rgba(245,158,11,0.3);">${t.viewReceipt}</a>
         </td></tr>` : ''}
       </table>
+      ${(() => {
+        try {
+          const reviewUrl = `${process.env.REVIEW_SITE_URL || 'https://lincanto.gr'}/review?token=${signReviewToken(data.bookingId)}`;
+          const invite = lang === 'el'
+            ? 'Μετά τη διαμονή σας, πείτε μας πώς τα περάσατε — παίρνει ένα λεπτό.'
+            : 'After your stay, tell us how it went — it takes a minute.';
+          const cta = lang === 'el' ? 'Αφήστε κριτική' : 'Leave a review';
+          return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;">
+        <tr><td style="background:#0f172a;border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:14px 20px;text-align:center;">
+          <p style="color:#9ca3af;font-size:13px;margin:0 0 10px;line-height:1.6;">${invite}</p>
+          <a href="${reviewUrl}" style="display:inline-block;background:#f59e0b;color:#0f172a;font-size:13px;font-weight:600;padding:10px 22px;border-radius:8px;text-decoration:none;">${cta}</a>
+        </td></tr>
+      </table>`;
+        } catch { return ''; }
+      })()}
       <p style="color:#4b5563;font-size:12px;margin:16px 0 0;">
         ${t.questions} <a href="mailto:${EMAIL}">${EMAIL}</a>
       </p>

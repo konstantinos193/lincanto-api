@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
+import { verifyReviewToken } from './review-token';
 
 @Injectable()
 export class ReviewsService {
@@ -305,6 +306,79 @@ export class ReviewsService {
         ratingDistribution: this.calculateRatingDistribution(reviews),
       },
     };
+  }
+
+  // ─── Public review flow (email link → lincanto.gr/review?token=) ─────────
+  // The signed token IS the authorization: it proves the guest holds a link
+  // that only the booking's email address was sent. No login needed.
+
+  // What the review form needs to greet the guest and label the room.
+  // Returns null for bad/expired tokens so the page can say "link expired"
+  // without leaking whether a booking id exists.
+  async getBookingReviewInfo(token: string) {
+    const bookingId = verifyReviewToken(token);
+    if (!bookingId) return null;
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { property: { select: { titleEn: true } } },
+    });
+    if (!booking) return null;
+    const existing = await this.prisma.review.findUnique({
+      where: { bookingId },
+      select: { id: true },
+    });
+    return {
+      guestName: booking.guestName,
+      propertyName: booking.property?.titleEn ?? null,
+      roomName: booking.roomName,
+      checkOut: booking.checkOut,
+      alreadyReviewed: !!existing,
+      canReview: booking.status === 'COMPLETED',
+    };
+  }
+
+  // New reviews arrive hidden (isPublic: false) — the admin panel approves
+  // them before they render on the site or feed the JSON-LD aggregate.
+  async createFromToken(
+    token: string,
+    dto: { rating?: number; title?: string; comment?: string },
+  ) {
+    const bookingId = verifyReviewToken(token);
+    if (!bookingId) {
+      throw new NotFoundException('Invalid or expired review link');
+    }
+    const rating = Math.round(Number(dto?.rating));
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+      throw new BadRequestException('Rating must be between 1 and 5');
+    }
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    if (booking.status !== 'COMPLETED') {
+      throw new BadRequestException('Reviews open after checkout');
+    }
+    const existing = await this.prisma.review.findUnique({
+      where: { bookingId },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException('Review already submitted for this booking');
+    }
+    const review = await this.prisma.review.create({
+      data: {
+        propertyId: booking.propertyId,
+        bookingId,
+        guestId: booking.guestId,
+        rating,
+        title: dto?.title?.slice(0, 200) || null,
+        comment: dto?.comment?.slice(0, 4000) || null,
+        isPublic: false,
+      },
+    });
+    return { id: review.id };
   }
 
   private async updatePropertyCleanlinessRating(propertyId: string): Promise<void> {

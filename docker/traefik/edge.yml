@@ -18,8 +18,27 @@
 tls:
   options:
     default:
-      # nginx: ssl_protocols TLSv1.2 TLSv1.3.
+      # Intermediate profile: TLS 1.2 + 1.3 (nginx: ssl_protocols TLSv1.2
+      # TLSv1.3). TLS 1.3 suites are fixed by Go; the list below only gates
+      # what TLS 1.2 can negotiate -- ECDHE key exchange with AEAD ciphers
+      # only, no CBC, no static RSA.
       minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+      curvePreferences:
+        - X25519MLKEM768
+        - X25519
+        - CurveP256
+        - CurveP384
+      # Reject the handshake when the client sends no SNI or one we hold no
+      # certificate for (bare-IP scanners, domain fronting). ACME HTTP-01 is
+      # unaffected: it is answered on the `web` entrypoint before TLS exists.
+      sniStrict: true
 
 http:
   middlewares:
@@ -34,7 +53,7 @@ http:
     # on responses that never reach the app (403s from the catch-all, ACME).
     st-secure-headers:
       headers:
-        stsSeconds: 31536000
+        stsSeconds: 63072000
         stsIncludeSubdomains: true
         # Not preload: submission to hstspreload.org is a separate, manual step.
         contentTypeNosniff: true

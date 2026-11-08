@@ -257,10 +257,22 @@ start_container() {  # <"loopback"|"live">
         ports="-p 127.0.0.1:$STAGE_HTTP:80 -p 127.0.0.1:$STAGE_HTTPS:443 -p 127.0.0.1:8099:8099"
     fi
     docker rm -f "$NAME" >/dev/null 2>&1 || true
+    # Hardened per the Docker checklist: non-root uid, every capability
+    # dropped except NET_BIND_SERVICE (needed to hold 80/443), no privilege
+    # escalation, read-only rootfs with a tmpfs /tmp, and resource ceilings
+    # sized well above Traefik's ~60MB working set. acme/ and logs/ are the
+    # only writable paths -- chown them to the runtime uid before the first
+    # run under these flags.
+    chown -R 65532:65532 "$TRAEFIK_DIR/acme" "$LOG_DIR"
     # shellcheck disable=SC2086
     docker run -d --name "$NAME" \
         --network "$DOCKER_NETWORK" \
         --restart unless-stopped \
+        --user 65532:65532 \
+        --cap-drop ALL --cap-add NET_BIND_SERVICE \
+        --security-opt no-new-privileges:true \
+        --read-only --tmpfs /tmp \
+        --memory 256m --pids-limit 200 --ulimit nofile=4096:4096 \
         $ports \
         -v "$TRAEFIK_DIR/traefik.yml:/etc/traefik/traefik.yml:ro" \
         -v "$DYNAMIC_DIR:/etc/traefik/dynamic:ro" \

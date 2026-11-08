@@ -56,25 +56,27 @@ export class BookingsService {
 
     if (search) {
       const searchTerm = search.trim();
+      // No `mode: 'insensitive'` — the datasource is SQLite, where Prisma rejects
+      // that argument outright. SQLite's LIKE is already case-insensitive for ASCII.
       where.OR = [
-        { guestName: { contains: searchTerm, mode: 'insensitive' } },
-        { guestEmail: { contains: searchTerm, mode: 'insensitive' } },
-        { guestPhone: { contains: searchTerm, mode: 'insensitive' } },
-        { id: { contains: searchTerm, mode: 'insensitive' } },
+        { guestName: { contains: searchTerm } },
+        { guestEmail: { contains: searchTerm } },
+        { guestPhone: { contains: searchTerm } },
+        { id: { contains: searchTerm } },
         {
           guest: {
             OR: [
-              { name: { contains: searchTerm, mode: 'insensitive' } },
-              { email: { contains: searchTerm, mode: 'insensitive' } },
-              { phone: { contains: searchTerm, mode: 'insensitive' } },
+              { name: { contains: searchTerm } },
+              { email: { contains: searchTerm } },
+              { phone: { contains: searchTerm } },
             ],
           },
         },
         {
           property: {
             OR: [
-              { titleGr: { contains: searchTerm, mode: 'insensitive' } },
-              { titleEn: { contains: searchTerm, mode: 'insensitive' } },
+              { titleGr: { contains: searchTerm } },
+              { titleEn: { contains: searchTerm } },
             ],
           },
         },

@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import morgan from 'morgan';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -45,9 +44,13 @@ async function bootstrap() {
     : [];
   
   // Always include localhost:3000 and localhost:3002 for development
-  const defaultOrigins = ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:57814', 'https://smholdings.gr', 'https://lincanto.gr', 'https://licanto.vercel.app', 'https://stefanos-admin.vercel.app'];
-  const adminUrl = process.env.ADMIN_URL || 'http://localhost:3002';
-  const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins, adminUrl])];
+  const defaultOrigins = ['http://localhost:3000', 'http://localhost:3002', 'http://localhost:57814', 'https://smholdings.gr', 'https://lincanto.gr'];
+  // ADMIN_URL may hold a comma-separated list like FRONTEND_URL does — the
+  // production env carries three entries in one string.
+  const adminUrls = (process.env.ADMIN_URL || 'http://localhost:3002')
+    .split(',')
+    .map(url => url.trim());
+  const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins, ...adminUrls])];
   
   console.log(`🌐 CORS enabled for origins: ${allowedOrigins.join(', ')}`);
   
@@ -61,21 +64,11 @@ async function bootstrap() {
         return callback(null, true);
       }
       
-      // Always allow the admin panel: the configured ADMIN_URL or any
-      // stefanos-admin*.vercel.app deployment/preview.
-      if (origin === adminUrl || /^https:\/\/stefanos-admin[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
+      // Always allow the admin panel: the configured ADMIN_URL(s).
+      if (adminUrls.includes(origin)) {
         return callback(null, true);
       }
 
-      // Allow Vercel preview/branch deployments for licanto, smholdings, and stefanos-admin
-      const isVercelPreview = /^https:\/\/licanto[a-z0-9-]*\.vercel\.app$/i.test(origin)
-        || /^https:\/\/incanto[a-z0-9-]*\.vercel\.app$/i.test(origin)
-        || /^https:\/\/smholdings[a-z0-9-]*\.vercel\.app$/i.test(origin)
-        || /^https:\/\/stefanos-admin[a-z0-9-]*\.vercel\.app$/i.test(origin);
-      if (isVercelPreview) {
-        return callback(null, true);
-      }
-      
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -135,22 +128,14 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('SM Holdings API')
-    .setDescription('Backend API for SM Holdings Real Estate Platform — by adinfinity')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
-
+  // No Swagger: the API is consumed only by our own frontends; a public
+  // /docs + /docs-json on api.smholdings.gr was a free endpoint/DTO map for
+  // scanners. Removed rather than gated — nothing should depend on it.
   const port = process.env.PORT || 3001;
   await app.listen(port);
 
   console.log(`🚀 Backend server running on port ${port}`);
   console.log(`📊 Health check: http://localhost:${port}/api/health`);
-  console.log(`📚 Swagger docs: http://localhost:${port}/docs`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 }
 

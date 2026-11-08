@@ -19,9 +19,11 @@ export class PropertiesService {
     };
 
     if (location) {
+      // No `mode: 'insensitive'` — the datasource is SQLite, where Prisma rejects
+      // that argument outright. SQLite's LIKE is already case-insensitive for ASCII.
       where.OR = [
-        { city: { contains: location, mode: 'insensitive' } },
-        { address: { contains: location, mode: 'insensitive' } },
+        { city: { contains: location } },
+        { address: { contains: location } },
       ];
     }
 
